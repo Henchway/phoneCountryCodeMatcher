@@ -9,15 +9,23 @@ class TransformScript(ScriptHook):
         self.error = error
         self.log = log
 
-    def match(self, input_number, country_codes, current_slice=5):
+    def match(self, input_number, country_codes, country, current_slice=5):
         """ Returns the number (without prefix) and the matched country"""
-        input_number = input_number.replace(" ", "")
+        if input_number is None:
+            return None, None
+        input_number = input_number.replace(" ", "").replace("-", "")
         if current_slice == 0:
-            return None
+            return None, None
         part = input_number[0:current_slice]
         if part in country_codes.keys():
-            return input_number[len(part):], country_codes[part]
-        return self.match(input_number, country_codes=country_codes, current_slice=(current_slice - 1))
+            country_code = [x['ID'] for x in country_codes[part] if x['2dig'] == country]
+            if len(country_code) == 0 and len(country_codes[part]) != 0:
+                country_code = [x['ID'] for x in country_codes[part]]
+            if country_code:
+                return input_number[len(part):], country_code.pop(0)
+            else:
+                return None, None
+        return self.match(input_number, country_codes=country_codes, current_slice=current_slice - 1, country=country)
 
     # The "execute()" method is called once when the pipeline is started
     # and allowed to process its inputs or just send data to its outputs.
@@ -28,8 +36,9 @@ class TransformScript(ScriptHook):
                 # Read the next input document, store it in a new dictionary, and write this as an output document.
                 inDoc = self.input.next()
                 number = inDoc['mobile']
+                country = inDoc['country']
                 codes = inDoc['codes']
-                cleaned_number, code = self.match(number, codes)
+                cleaned_number, code = self.match(number, codes, country)
 
                 outDoc = {
                     'original': inDoc,
